@@ -199,6 +199,8 @@ export const { useCurrentUserQuery, useSignInMutation } = extendedApi
 
 ## Routing
 
+Use the **object-based router API** (`createBrowserRouter` + `RouterProvider`). It has a more complete API than the JSX `<Routes>` approach and enables lazy loading and per-route error boundaries.
+
 ### URL configuration
 
 All paths are defined centrally in `Config/Paths.ts` and accessed via `Config.urls.*`. Never hardcode path strings in components or routers.
@@ -207,74 +209,121 @@ All paths are defined centrally in `Config/Paths.ts` and accessed via `Config.ur
 // Config/Paths.ts
 export const urls = {
   home: '/',
-  signIn: '/sign-in/',
-  profile: '/profile/',
-  auth: {
-    users: '/admin/users/',
-    roles: '/admin/roles/',
+  signIn: '/sign-in',
+  profile: '/profile',
+  admin: {
+    users: '/admin/users',
+    roles: '/admin/roles',
   },
   statements: {
-    base: '/statements/*',
-    input: '/statements/input/',
-    schemas: { base: '/statements/schemas/*' },
+    root: '/statements',
+    input: '/statements/input',
+    schemas: '/statements/schemas',
   },
 }
 ```
 
 ### Root router
 
-The root router handles public routes directly and delegates everything else to a layout + module routers.
+Defined once in `Core/Router.tsx`. Module routes are imported as `RouteObject[]` arrays and spread into `children`. Mount with `RouterProvider` in `main.tsx`.
 
 ```typescript
 // Core/Router.tsx
-import { BrowserRouter, Routes, Route } from 'react-router-dom'
+import { createBrowserRouter } from 'react-router-dom'
+import { makePrivate } from 'Auth/Guards/PrivateRoute'
+import { statementsRoutes } from 'Statements/Router'
 import Config from 'Config'
 
-const AppRouter = () => (
-  <BrowserRouter>
-    <Routes>
-      <Route path={Config.urls.signIn} element={<SignInView />} />
-      <Route path="*" element={<LoggedInRouter />} />
-    </Routes>
-  </BrowserRouter>
-)
+export const router = createBrowserRouter([
+  // Public routes
+  { path: Config.urls.signIn, element: <SignInView /> },
+  { path: '/reset-password', element: <ResetPasswordView /> },
 
-const LoggedInRouter = () => (
-  <BaseLayout>
-    <Routes>
-      <Route path={Config.urls.home} element={makePrivate(<DashboardView />)} />
-      <Route path={Config.urls.statements.base} element={makePrivate(<StatementsRouter />)} />
-    </Routes>
-  </BaseLayout>
+  // Protected routes inside the app shell
+  {
+    path: '/',
+    element: makePrivate(<BaseLayout />),
+    children: [
+      { index: true, element: <DashboardView /> },
+      { path: Config.urls.profile, element: <ProfileView /> },
+      ...statementsRoutes,
+    ],
+  },
+])
+```
+
+```typescript
+// main.tsx
+import { RouterProvider } from 'react-router-dom'
+import { router } from 'Core/Router'
+
+ReactDOM.createRoot(document.getElementById('root')!).render(
+  <Provider store={store}>
+    <RouterProvider router={router} />
+  </Provider>
 )
 ```
 
-### Module routers
+### Module routes
 
-Each module defines its own router with its own sub-routes.
+Each module exports a `RouteObject[]` array spread into the parent `children`.
 
 ```typescript
 // Statements/Router.tsx
-import { Routes, Route } from 'react-router-dom'
+import type { RouteObject } from 'react-router-dom'
+import { makePrivate } from 'Auth/Guards/PrivateRoute'
 import Config from 'Config'
 
-export const StatementsRouter = () => (
-  <Routes>
-    <Route path={Config.urls.statements.input} element={<InputView />} />
-    <Route path={Config.urls.statements.schemas.base} element={<SchemasRouter />} />
-  </Routes>
-)
+export const statementsRoutes: RouteObject[] = [
+  { path: Config.urls.statements.input, element: makePrivate(<InputView />) },
+  { path: Config.urls.statements.schemas, element: makePrivate(<SchemasView />) },
+]
 ```
 
 ### Route guards
 
-Guards are HOFs that wrap elements, not wrapper components.
+`PrivateRoute` wraps children, reads auth state directly from the Redux store (not hooks), and optionally accepts a `permFunction` to check fine-grained permissions. `makePrivate` is the HOF used inline in route definitions.
 
 ```typescript
 // Auth/Guards/PrivateRoute.tsx
-const makePrivate = (element: React.ReactElement) => (
-  <PrivateRoute>{element}</PrivateRoute>
-)
+import { Navigate } from 'react-router-dom'
+import type { PropsWithChildren, ReactNode } from 'react'
+import store from 'Core/Redux/Store'
+import type { AuthenticatedUser } from 'Auth/Types'
+import Config from 'Config'
+
+const PrivateRoute = ({
+  children,
+  permFunction,
+}: PropsWithChildren<{ permFunction?: (user: AuthenticatedUser) => boolean }>) => {
+  const state = store.getState()
+  if (state.auth?.user && (!permFunction || permFunction(state.auth.user))) {
+    return children
+  }
+  return (
+    <Navigate
+      to={{ pathname: Config.urls.signIn }}
+      state={{ next: window.location.pathname }}
+      replace
+    />
+  )
+}
+
+export const makePrivate = (
+  View: ReactNode,
+  props?: { permFunction?: (user: AuthenticatedUser) => boolean },
+) => <PrivateRoute {...props}>{View}</PrivateRoute>
+
+export default PrivateRoute
+```
+
+Use `permFunction` for permission-restricted routes:
+
+```typescript
+{
+  path: Config.urls.admin.users,
+  element: makePrivate(<UsersView />, { permFunction: (u) => u.isStaff }),
+}
 ```
 
 ## Components
@@ -487,6 +536,9 @@ describe('SignInForm', () => {
 | Global state | `<Module>/Redux/index.ts` | `createSlice`, selectors as `select*` |
 | Server data | `<Module>/Services/Api.ts` | `api.injectEndpoints` |
 | URL paths | `Config/Paths.ts` | `Config.urls.*` |
+| Router | `Core/Router.tsx` | `createBrowserRouter` + `RouterProvider` |
+| Module routes | `<Module>/Router.tsx` | `RouteObject[]` named export, spread into parent `children` |
+| Route protection | `Auth/Guards/PrivateRoute.tsx` | `makePrivate(element, { permFunction })` |
 | Validation | `<Module>/Schemas/*Schema.ts` | Zod + `z.infer<>` |
 | Page components | `<Module>/Views/*View.tsx` | Default export, connects Redux/RTK |
 | UI components | `<Module>/Components/*.tsx` | Default export, props only |
