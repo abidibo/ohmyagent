@@ -376,19 +376,45 @@ export default UsersList
 
 Extract business logic from components into `use*` hooks. Keep them in `Hooks.ts` at the module level, or in a `Hooks/` subfolder for complex sub-features.
 
+Shared form utility hooks live in `Common/Hooks/Forms.ts` and are used everywhere:
+
+**`useFormWithSchema`** — wraps RHF's `useForm` with the Zod resolver pre-wired. Always use this instead of calling `useForm` directly.
+
+**`useFormState`** — manages open/close state and payload for modal forms. Returns `[formState, openForm, closeForm]`.
+
 ```typescript
-// Statements/Hooks.ts
-import { useSelector } from 'react-redux'
-import { selectYear } from 'Statements/Redux'
+// Common/Hooks/Forms.ts
+import { zodResolver } from '@hookform/resolvers/zod'
+import { useState, useCallback } from 'react'
+import { useForm, type DefaultValues, type FieldValues, type Mode, type Resolver } from 'react-hook-form'
+import { z } from 'zod'
 
-export const useCurrentYear = () => useSelector(selectYear)
+export const useFormWithSchema = <T extends FieldValues>(
+  schema: z.ZodObject,
+  defaultValues: DefaultValues<T>,
+  options?: { reValidationMode: Exclude<Mode, 'onTouched' | 'all'> },
+) => {
+  return useForm<T>({
+    resolver: zodResolver(schema) as Resolver<T, any, T>,
+    defaultValues,
+    ...options,
+  })
+}
 
-export const useStatementPermissions = () => {
-  const user = useCurrentUser()
-  return {
-    canEdit: user?.permissions.includes('statements.change'),
-    canDelete: user?.permissions.includes('statements.delete'),
-  }
+type FormState<T> = { [payloadName: string]: T | null } & { isOpen: boolean }
+type UseFormStateResult<T> = [FormState<T>, (payload: T) => void, () => void]
+
+export const useFormState = <T>(payloadName: string): UseFormStateResult<T> => {
+  const [formState, setFormState] = useState<FormState<T>>({ isOpen: false, [payloadName]: null } as FormState<T>)
+  const openForm = useCallback(
+    (payload: T) => setFormState({ isOpen: true, [payloadName]: payload } as FormState<T>),
+    [setFormState, payloadName],
+  )
+  const closeForm = useCallback(
+    () => setFormState({ isOpen: false, [payloadName]: null } as FormState<T>),
+    [payloadName],
+  )
+  return [formState, openForm, closeForm]
 }
 ```
 
@@ -411,22 +437,26 @@ export type UserFormData = z.infer<typeof UserSchema>
 
 ## Forms
 
-Forms live in `Forms/`. Use Zod schemas for validation. Use React Hook Form or custom hooks depending on complexity.
+Forms live in `Forms/`. Use `useFormWithSchema` (never raw `useForm`) for RHF + Zod. Use `useFormState` to manage the open/close state and payload of modal forms in the parent component.
 
 ```typescript
 // Auth/Forms/UserForm.tsx
-import { useForm } from 'react-hook-form'
-import { zodResolver } from '@hookform/resolvers/zod'
+import { useFormWithSchema } from 'Common/Hooks/Forms'
 import { UserSchema, type UserFormData } from 'Auth/Schemas/UserSchema'
 import { useCreateUserMutation } from 'Auth/Services/Api'
+import type { User } from 'Auth/Types'
 
-const UserForm = () => {
+const UserForm = ({ user, onClose }: { user: User; onClose: () => void }) => {
   const [createUser] = useCreateUserMutation()
-  const { register, handleSubmit, formState: { errors } } = useForm<UserFormData>({
-    resolver: zodResolver(UserSchema),
-  })
+  const { register, handleSubmit, formState: { errors } } = useFormWithSchema<UserFormData>(
+    UserSchema,
+    { name: user.name, email: user.email, role: user.role },
+  )
 
-  const onSubmit = (data: UserFormData) => createUser(data)
+  const onSubmit = async (data: UserFormData) => {
+    await createUser(data)
+    onClose()
+  }
 
   return (
     <form onSubmit={handleSubmit(onSubmit)}>
@@ -437,6 +467,27 @@ const UserForm = () => {
 }
 
 export default UserForm
+```
+
+The parent manages when to show the form with `useFormState`:
+
+```typescript
+// Auth/Views/UsersView.tsx
+import { useFormState } from 'Common/Hooks/Forms'
+import type { User } from 'Auth/Types'
+
+const UsersView = () => {
+  const [formState, openForm, closeForm] = useFormState<User>('user')
+
+  return (
+    <>
+      <UsersList onEdit={openForm} />
+      {formState.isOpen && formState.user && (
+        <UserFormModal user={formState.user} onClose={closeForm} />
+      )}
+    </>
+  )
+}
 ```
 
 ## Utilities
