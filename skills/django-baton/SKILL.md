@@ -62,10 +62,19 @@ class PageAdmin(admin.ModelAdmin):
 - `order-[NUMBER]` — Control tab order (0-based, add to first fieldset)
 - `baton-tab-group-fs-tech--inline-feature` — Group multiple items (separate with `--`)
 
-**Inlines:** Inline classes stay the same. Use `"collapse-entry"` and `"expand-first"` for collapsible inlines:
+**Inlines:** Inline classes stay the same. Use `"collapse-entry"` and `"expand-first"` for collapsible inlines.
+
+Prefer `TabularInline` when the inline has a small number of fields (up to ~5). Use `StackedInline` for complex inlines with many fields or custom layouts.
+
+The inline tab name must match the **`related_name`** of the ForeignKey (or `{modelname}_set` if no `related_name` is set):
 
 ```python
-class ImageInline(admin.StackedInline):
+# models.py
+class Image(models.Model):
+    page = models.ForeignKey(Page, related_name='images', on_delete=models.CASCADE)
+
+# admin.py — use 'images' (the related_name) in baton-tab-inline-*
+class ImageInline(admin.TabularInline):
     model = Image
     extra = 1
     classes = ('collapse-entry', 'expand-first')
@@ -76,10 +85,10 @@ When you add a new ModelAdmin instance, also add a BATON MENU item in the settin
 ```python
 BATON = {
     # ...
-    'MENU': {
+    'MENU': [
       # ...
       { 'type': 'model', 'label': 'My entity', 'name': 'modelname', 'app': 'appname' },
-    }
+    ]
 }
 ```
 
@@ -215,7 +224,7 @@ class Article(models.Model):
 
 | Mistake | Fix |
 |---------|-----|
-| Inline doesn't appear in tab | Use `baton-tab-inline-{modelname}` not `baton-tab-fs-` |
+| Inline doesn't appear in tab | Use `baton-tab-inline-{related_name}` (the FK `related_name`), not `baton-tab-fs-` |
 | Tab classes on wrong fieldset | First fieldset gets `baton-tabs-init` and all `baton-tab-*` declarations |
 | Forgot RelatedDropdownFilter import | Import from `baton.admin` not `django.contrib.admin` |
 | Form include doesn't show | Check template path and field name match exactly |
@@ -227,15 +236,28 @@ class Article(models.Model):
 |---------|-----------|---------|
 | Form tabs | fieldset classes | `'baton-tabs-init'`, `'tab-fs-content'` |
 | Form includes | `baton_form_includes` | `[('template.html', 'field', 'above')]` |
-| Inline tabs | fieldset classes | `'baton-tab-inline-modelname'` |
+| Inline tabs | fieldset classes | `'baton-tab-inline-{related_name}'` |
 | Dropdown filters | `list_filter` | `('field', RelatedDropdownFilter)` |
 | Row attributes | `baton_cl_rows_attributes` | Method returning `{pk: {'class': 'custom'}}` |
 | Collapsible inlines | inline classes | `'collapse-entry'`, `'expand-first'` |
 | Text summarization | `baton_summarize_fields` | `{'source': [{'target': 'dest'}]}` |
 
-## Other admin paractices
+## Other admin practices
 
-- use `prepopulated_fields` attribute whenever a slug field exists. Prepopulate the slug using the name or title or similar field.
+- Use `prepopulated_fields` whenever a slug field exists. Prepopulate the slug from the name or title field.
+- Always define `list_display` with the most useful fields for the changelist. Include the primary identifier, key status/type fields, and dates.
+- Define `search_fields` for any text fields users will search by (name, title, email, etc.). Use `^` for startswith, `=` for exact, `@` for full-text search (MySQL only), no prefix for contains.
+- Define `ordering` to set a sensible default sort order.
+- Use `list_select_related` when `list_display` includes fields from related models (ForeignKey), to avoid N+1 queries. Set it to `True` to follow all FK relations, or a tuple of specific field names for precision.
+
+```python
+@admin.register(Article)
+class ArticleAdmin(admin.ModelAdmin):
+    list_display = ('title', 'author', 'category', 'status', 'publication_date')
+    search_fields = ('title', 'author__name')
+    ordering = ('-publication_date',)
+    list_select_related = ('author', 'category')  # avoids N+1 for author and category
+```
 
 ## Real-World Impact
 
