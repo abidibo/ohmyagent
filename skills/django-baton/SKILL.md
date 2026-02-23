@@ -83,6 +83,8 @@ BATON = {
 }
 ```
 
+Menu items are generally grouped inside items of type `title`. Try to understand the structure for the project and continue with the same rules.
+
 ## List Filters
 
 **Dropdown filters** (requires 3+ options, else uses default):
