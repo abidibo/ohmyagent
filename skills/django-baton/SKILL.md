@@ -71,6 +71,18 @@ class ImageInline(admin.StackedInline):
     classes = ('collapse-entry', 'expand-first')
 ```
 
+When you add a new ModelAdmin instance, also add a BATON MENU item in the settings, usually settings/common.py. The format to add a link to the changelist page is:
+
+```python
+BATON = {
+    # ...
+    'MENU': {
+      # ...
+      { 'type': 'model', 'label': 'My entity', 'name': 'modelname', 'app': 'appname' },
+    }
+}
+```
+
 ## List Filters
 
 **Dropdown filters** (requires 3+ options, else uses default):
