@@ -22,12 +22,13 @@ You MUST follow strictly this workflow:
 5 - **Implement**. Implement the chosen approach.
 6 - **Self review**. Optimize code for DRY principles and fix errors before user delivery
 7 - **Review**. Ask the user to review. If the user is satisfied with the implementation, go on, otherwise ask for corrections.
-8 - **Repeat**. Repeat from point 4 for the following step.
+8 - **Code review gate (optional)**. Ask the user if they want to run a code review on this step. If yes, invoke the code-review skill. If no, skip. After the final step, offer a full-session code review instead.
+9 - **Repeat**. Repeat from point 4 for the following step.
 
 ## Process Flow
 
 This is crucial. This diagram explains exactly what you need to do. Follow it strictly. It's extremely important you follow the rule of implementing step by step.
-So you get understanding of the implementation topic, then you ask clarifying question, you divide the implmentation plan in steps, and then you implement each step at a time, looping between step 4 and 6.
+So you get understanding of the implementation topic, then you ask clarifying question, you divide the implmentation plan in steps, and then you implement each step at a time, looping between step 4 and 8. After each step review, offer the optional code review gate. After the final step, offer a full-session code review.
 
 ```yaml
 workflow:
@@ -118,6 +119,19 @@ workflow:
       exit_condition:
         - The user is satisfied with the current step.
 
+    - id: code_review_gate
+      title: Offer code review (optional)
+      objective: Ask the user if they want a code review on the current step or full session.
+      agent_actions:
+        - After the user approves a step, ask "Would you like to run a code review on this step before moving on?"
+        - If the user declines, skip and continue to the next step or end.
+        - If the user accepts, invoke the code-review skill in post-step mode (lighter review, 5 agents, scope = current step's changed files).
+        - After the final step is approved, ask "Would you like to run a full code review on the entire implementation?"
+        - If the user accepts, invoke the code-review skill in post-session mode (full review, 6 agents, scope = all changed files).
+        - If the user declines, skip and end.
+      exit_condition:
+        - The user declines the review, OR the code review skill completes.
+
   transitions:
     - from: explore_details
       to: clarify
@@ -164,12 +178,16 @@ workflow:
       when: user_requests_corrections
 
     - from: review
-      to: propose_approaches
-      when: user_is_satisfied_and_more_steps_remain
+      to: code_review_gate
+      when: user_is_satisfied
 
-    - from: review
+    - from: code_review_gate
+      to: propose_approaches
+      when: code_review_done_or_skipped_and_more_steps_remain
+
+    - from: code_review_gate
       to: end
-      when: user_is_satisfied_and_no_more_steps_remain
+      when: code_review_done_or_skipped_and_no_more_steps_remain
 ```
 
 ## Key principles

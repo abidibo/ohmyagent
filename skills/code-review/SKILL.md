@@ -1,6 +1,6 @@
 ---
 name: code-review
-description: Use after completing an implementation. Ask the user if they want a code review, then dispatch one or more reviewer agents in parallel when feasible.
+description: Run a structured, multi-agent code review. Use after the implement skill (per-step or full session) or standalone when the user asks for a code review.
 ---
 
 # Code Review Skill
@@ -9,152 +9,255 @@ Any response that skips a required step is incorrect. Do not optimize for speed 
 
 ## When to use
 
-After completing an implementation, ask the user if they want a code review. If yes, gather context, decide on parallelization, dispatch agents, and act on feedback.
+- **After the implement skill**: at the end of each step (lighter review) or after the full implementation session (comprehensive review). Always ask the user first — if they decline, skip entirely.
+- **Standalone**: when the user explicitly asks for a code review or invokes `/code-review`.
+
+## Modes
+
+### 1. Post-step review (during implement workflow)
+
+- Triggered: after each implement step's review phase, before moving to the next step.
+- **You MUST ask the user**: "Would you like to run a code review on this step?" If the user says no, skip immediately and continue the implement workflow.
+- Scope: only the files changed in the current step.
+- Lighter review: run 5 parallel agents (skip git history check).
+
+### 2. Post-session review (during implement workflow)
+
+- Triggered: after all implement steps are completed.
+- **You MUST ask the user**: "Would you like to run a full code review on the entire implementation?" If the user says no, skip entirely.
+- Scope: all files changed during the entire implementation session.
+- Full review: run all 6 parallel agents.
+
+### 3. Standalone review
+
+- Triggered: user invokes `/code-review` or asks for a code review outside of the implement workflow.
+- Scope determination: ask the user how to determine the scope. Options include:
+  - Diff against a branch (e.g. main)
+  - Specific files or directories
+  - Staged/unstaged changes
+- Spec determination: ask the user if they have a spec or requirements document to check against. If yes, use it for spec compliance. If no, skip the spec compliance agent.
+- Full review: run all applicable agents (5 or 6 depending on spec availability).
 
 ## Workflow
 
-### Step 1 — Ask the user
-
-Ask: **"Do you want me to run a code review on this implementation?"**
-
-If no: skip the entire skill.
-If yes: proceed to Step 2.
-
-### Step 2 — Gather context
-
-Before dispatching any agent, collect:
-
-1. **Changed files** — run `git diff --name-only HEAD` (or `git diff --name-only <base>`) to get the list of changed files.
-2. **Diff content** — run `git diff HEAD` (or against a base branch) to read what changed.
-3. **Plan or spec** — check if a `spec.md` or plan document exists for this work. If it does, note its path. If not, summarize the intent of the changes in 2–4 sentences.
-
-### Step 3 — Decide on parallelization
-
-Analyze the changed files and decide how many reviewers to dispatch:
-
-| Situation | Strategy |
-|-----------|----------|
-| Single coherent change (one module, one feature, one fix) | 1 reviewer agent |
-| Changes span 2+ independent areas (e.g. frontend + backend, API + DB migration) | 1 agent per independent area |
-| Large diff with distinct concerns (security, logic, tests) | Split by concern |
-
-**Maximum useful parallelism: 3 agents.** More than that produces overlap without gain.
-
-**Parallelization is feasible when areas are independent** — a reviewer focused on the frontend does not need to read the backend migration to give useful feedback, and vice versa.
-
-### Step 4 — Construct and dispatch reviewer agent(s)
-
-For each reviewer, fill in the `code_reviewer.md` template with:
-
-- **What was implemented**: a concrete description of what this reviewer should evaluate (specific to their area if parallelized)
-- **Files to review**: the exact file paths relevant to this reviewer's scope
-- **Plan or spec**: either a path to the spec file or an inline summary of requirements/acceptance criteria
-- **Focus area** (if parallelized): e.g. "Focus on the Django backend: models, views, serializers, and migrations. Do not review frontend files."
-
-Dispatch all agents in a single message (parallel tool calls).
-
-### Step 5 — Act on feedback
-
-When all agents return:
-
-| Severity | Action |
-|----------|--------|
-| Critical | Fix immediately before proceeding |
-| Important | Fix before closing the work |
-| Minor | Note for later; fix if low-effort |
-
-- If the reviewer flags something you disagree with: push back with a technical argument (show the code, cite the spec, explain the reasoning). Do not silently accept wrong feedback.
-- If two parallel reviewers contradict each other: flag it to the user with both positions.
-
-## Process Flow
-
 ```yaml
 workflow:
-  name: code_review
+  name: parallel_code_review
+  description: >
+    Spawn parallel review agents, collect findings, present results in a
+    categorized table, auto-fix critical/important issues, and handle minor issues.
+
+  global_rules:
+    - This skill is ALWAYS conditional. Never run it without asking the user first.
+    - If the user declines, skip immediately with no further discussion.
+    - All review agents run in parallel for speed.
+    - Findings are categorized as critical, important, or minor.
+    - Critical and important issues are auto-fixed without individual confirmation.
+    - Minor issues require user decision.
 
   states:
-    - id: ask_user
-      title: Ask the user
+    - id: gate
+      title: Ask for permission
+      objective: Determine if the user wants to run the review.
       agent_actions:
-        - Ask if the user wants a code review.
+        - Ask the user if they want to run a code review.
+        - If declined, skip entirely and return control.
       exit_condition:
-        - User says yes or no.
+        - User accepts or declines.
 
-    - id: gather_context
-      title: Gather context
+    - id: determine_scope
+      title: Determine review scope
+      objective: Identify which files and context to review.
       agent_actions:
-        - Run git diff to identify changed files and their content.
-        - Locate any spec or plan document for this work.
-        - If no spec exists, write a 2–4 sentence summary of what was implemented and why.
+        - In post-step mode, scope is the current step's changed files (automatic).
+        - In post-session mode, scope is all files changed during the session (automatic).
+        - In standalone mode, ask the user to specify scope.
+        - In standalone mode, ask the user if they have a spec to check against.
       exit_condition:
-        - Changed files known, diff read, plan/spec located or summarized.
+        - Scope and spec availability are determined.
 
-    - id: decide_parallelization
-      title: Decide on parallelization
+    - id: spawn_agents
+      title: Spawn parallel review agents
+      objective: Run all applicable review agents in parallel.
       agent_actions:
-        - Inspect the changed files for independence.
-        - Decide: 1 reviewer or N reviewers (max 3).
-        - For N > 1: define each reviewer's scope so they do not overlap.
+        - Spawn agents in parallel using the Agent tool.
+        - Each agent receives the list of changed files and relevant context.
+        - Wait for all agents to complete.
       exit_condition:
-        - Number of reviewers and scope per reviewer decided.
+        - All agents have returned their findings.
 
-    - id: dispatch
-      title: Dispatch reviewer agent(s)
+    - id: present_findings
+      title: Present findings
+      objective: Show all issues in a categorized table.
       agent_actions:
-        - Fill in the code_reviewer.md template for each agent.
-        - Dispatch all agents in a single parallel message.
+        - Merge all agent results.
+        - Present a single table with columns - Severity | Category | File | Line(s) | Description.
+        - Sort by severity (critical first, then important, then minor).
+        - If no issues found, report clean review and exit.
       exit_condition:
-        - All agents return their reports.
+        - Findings are presented to the user.
 
-    - id: act
-      title: Act on feedback
+    - id: fix_critical_important
+      title: Auto-fix critical and important issues
+      objective: Fix all critical and important issues automatically.
       agent_actions:
-        - Fix all Critical issues immediately.
-        - Fix all Important issues before proceeding.
-        - Note Minor issues.
-        - Push back on incorrect feedback with technical reasoning.
+        - Fix all critical and important issues at once.
+        - Show the user a summary of all changes made.
+        - Run a quick self-review to ensure fixes don't introduce new issues.
       exit_condition:
-        - All Critical and Important issues resolved.
+        - All critical and important issues are resolved.
+
+    - id: handle_minor
+      title: Handle minor issues
+      objective: Let the user decide what to do with minor issues.
+      agent_actions:
+        - Ask the user if they want to address minor issues now or save them for later.
+        - If address now, fix them all and show changes.
+        - If save for later, ask the user where to save the report file.
+        - Write the minor issues report to the user-specified location.
+      exit_condition:
+        - Minor issues are either fixed or saved.
 
   transitions:
-    - from: ask_user
+    - from: gate
       to: end
       when: user_declines
 
-    - from: ask_user
-      to: gather_context
+    - from: gate
+      to: determine_scope
       when: user_accepts
 
-    - from: gather_context
-      to: decide_parallelization
-      when: context_collected
+    - from: determine_scope
+      to: spawn_agents
+      when: scope_determined
 
-    - from: decide_parallelization
-      to: dispatch
-      when: scope_defined
+    - from: spawn_agents
+      to: present_findings
+      when: all_agents_completed
 
-    - from: dispatch
-      to: act
-      when: all_agents_returned
-
-    - from: act
+    - from: present_findings
       to: end
-      when: all_critical_and_important_issues_resolved
+      when: no_issues_found
+
+    - from: present_findings
+      to: fix_critical_important
+      when: critical_or_important_issues_exist
+
+    - from: present_findings
+      to: handle_minor
+      when: only_minor_issues_exist
+
+    - from: fix_critical_important
+      to: handle_minor
+      when: minor_issues_exist
+
+    - from: fix_critical_important
+      to: end
+      when: no_minor_issues
+
+    - from: handle_minor
+      to: end
+      when: minor_issues_handled
 ```
 
-## Red Flags
+## Review Agents
 
-**Never:**
-- Dispatch reviewers without reading the diff first — vague prompts produce vague reviews
-- Ignore Critical issues
-- Proceed past Important issues without fixing them
-- Accept reviewer feedback you know is wrong
+Each agent is spawned in parallel using the Agent tool. Every agent receives:
+- The list of files in scope (changed files)
+- The full file contents for context
+- The spec/requirements (if available, for spec compliance)
 
-**If the reviewer is wrong:**
-- Push back with technical reasoning
-- Show the code or tests that prove it works
-- Ask for clarification if the feedback is ambiguous
+### Agent 1: Spec Compliance
 
-## Template
+- **Skip if**: no spec is available (standalone mode without spec).
+- **Goal**: verify that the implementation matches the spec/requirements.
+- **Checks**:
+  - All required features are implemented.
+  - No extra unrequested behavior was added.
+  - Edge cases mentioned in the spec are handled.
+- **Output**: list of findings with severity, file, line(s), and description.
 
-See: `code_reviewer.md`
+### Agent 2: Code Quality
+
+- **Goal**: review code for quality and maintainability.
+- **Checks**:
+  - Naming conventions (variables, functions, classes).
+  - Function/method length and complexity.
+  - Error handling correctness.
+  - Type safety and proper use of language features.
+  - Readability and clarity.
+- **Output**: list of findings with severity, file, line(s), and description.
+
+### Agent 3: Architecture Adherence
+
+- **Goal**: verify the implementation follows existing project patterns and conventions.
+- **Checks**:
+  - Compare with similar modules/components in the codebase.
+  - Correct use of existing abstractions and utilities.
+  - Proper module boundaries and separation of concerns.
+  - Consistent patterns with the rest of the project.
+- **Output**: list of findings with severity, file, line(s), and description.
+
+### Agent 4: DRY Principle
+
+- **Goal**: identify code duplication and reuse opportunities.
+- **Checks**:
+  - Duplicated logic across the changed files.
+  - Duplicated logic between changed files and existing codebase.
+  - Opportunities to extract shared utilities or helpers.
+  - Repeated patterns that could be abstracted.
+- **Output**: list of findings with severity, file, line(s), and description.
+
+### Agent 5: Bug Detection
+
+- **Goal**: find potential bugs, race conditions, and logic errors.
+- **Checks**:
+  - Off-by-one errors, null/undefined handling.
+  - Race conditions or concurrency issues.
+  - Resource leaks (unclosed connections, missing cleanup).
+  - Incorrect boolean logic or control flow.
+  - Security vulnerabilities (injection, XSS, etc.).
+- **Output**: list of findings with severity, file, line(s), and description.
+
+### Agent 6: Git History Check
+
+- **Only in**: post-session and standalone modes (skipped in post-step mode).
+- **Goal**: review the git history for quality.
+- **Checks**:
+  - Commits are well-structured (not too large, logical grouping).
+  - No accidental files committed (secrets, build artifacts, .env files).
+  - Commit messages are meaningful and descriptive.
+- **Output**: list of findings with severity, file, line(s), and description.
+
+## Output Format
+
+All findings are presented in a single markdown table:
+
+```
+| Severity | Category | File | Line(s) | Description |
+|----------|----------|------|---------|-------------|
+| CRITICAL | Bug Detection | src/auth.py | 42-45 | SQL injection via unsanitized user input |
+| IMPORTANT | DRY | src/utils.py, src/helpers.py | 10, 25 | Duplicated validation logic |
+| MINOR | Code Quality | src/models.py | 88 | Variable name `x` is not descriptive |
+```
+
+## Integration with Implement Skill
+
+The implement skill's review state (step 7) should include the following after the user approves the step:
+
+> "Would you like to run a code review on this step before moving on?"
+
+And after the final step is completed:
+
+> "Would you like to run a full code review on the entire implementation?"
+
+These are **opt-in only**. If the user says no, proceed without any review.
+
+## Key Principles
+
+- **Always conditional**. Never run without explicit user consent.
+- **Parallel execution**. All agents run simultaneously for speed.
+- **Actionable output**. Every finding must include file, line(s), and a clear description.
+- **Auto-fix critical/important**. Don't waste the user's time on obvious fixes.
+- **User decides on minor**. Respect the user's time and priorities.
+- **Scope awareness**. Review only what's relevant, not the entire codebase.
