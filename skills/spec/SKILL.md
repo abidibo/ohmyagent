@@ -84,7 +84,7 @@ You MUST follow this workflow strictly. Do not skip or reorder steps.
 
 4. **Propose a solution approach** — Present 2 or 3 possible approaches with a clear recommendation and rationale. Ask the user to choose or propose something different.
 
-5. **Visual aid (when helpful)** — If a diagram, flow, or data model would clarify the design or the implementation plan, generate a static HTML file in a tmp directory and open it with `xdg-open`. Use tables, flowcharts, component diagrams, data models — whatever best represents the concept. Lean toward generating visuals when in doubt.
+5. **Visual aid (when helpful)** — If a diagram, flow, or data model would clarify the design or the implementation plan, generate a static HTML file in a tmp directory and open it with `xdg-open`. Use tables, flowcharts, component diagrams, data models — whatever best represents the concept. Lean toward generating visuals when in doubt. All generated HTML must follow `STYLE.md` exactly.
 
 6. **Present the implementation steps** — Break the solution into ordered, atomic, granular steps. Display them in a table for review:
 
@@ -166,6 +166,7 @@ workflow:
       agent_actions:
         - Judge whether a visual would genuinely help. Lean toward yes.
         - If yes, generate a static HTML file with diagrams/tables/flows in a tmp dir.
+          Follow STYLE.md exactly for all markup, tokens, CDN libraries, and aesthetics.
         - Open the file with xdg-open.
         - Ask the user if the visual correctly represents the design.
       exit_condition:

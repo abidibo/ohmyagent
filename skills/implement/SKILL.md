@@ -16,9 +16,9 @@ Use when the user wants to implement some tasks, not full features. Especially w
 You MUST follow strictly this workflow:
 
 1 - **Explore the implementation details**. Ask the user to provide all needed details for the implementation, until you think the plan is clear enough to proceed. Read files you think are relevant, git logs, commits and anything you think can help you understand better the context.
-2 - **Ask clarifying questions**. One at a time, understand purpose, success criteria. Prefer visual representation. If you think it's worth it, create a static html js css frontend for it with diagrams and flows in a tmp dir and xdg-open in the browser to let the user see it.
+2 - **Ask clarifying questions**. One at a time, understand purpose, success criteria. Important! Ask all the questions you need to properly understand the context of the implementation. Prefer visual representation. If you think it's worth it, create a static html js css frontend for it with diagrams and flows in a tmp dir and xdg-open in the browser to let the user see it.
 3 - **Divide the implementation plan in steps**. Ask the user to review the steps, and if he wants to merge them, modify or delete any or add some steps.
-4 - **Propose 2-3 approaches**. Each step at a time. Propose 2 or 3 steps with you're recommendation and why. Have the user accept its preference or if he wants something different.
+4 - **Propose 2-3 approaches**. Each step at a time. Propose 2 or 3 steps with your recommendation and why. Have the user accept its preference or if he wants something different.
 5 - **Implement**. Implement the chosen approach.
 6 - **Self review**. Optimize code for DRY principles and fix errors before user delivery
 7 - **Review**. Ask the user to review. If the user is satisfied with the implementation, go on, otherwise ask for corrections.
@@ -83,6 +83,7 @@ workflow:
       agent_actions:
         - Focus on one implementation step at a time.
         - Propose 2 or 3 approaches for that step.
+        - Prefer a visual representation to explain the approaches.
         - Recommend one approach.
         - Explain why the recommendation is preferred.
         - Ask the user to choose or suggest a different approach.
@@ -181,9 +182,10 @@ workflow:
 ## Mandatory rules
 
 - Do not implement anything until Steps 1-4 have been completed explicitly in the conversation.
-- Ask exactly one clarifying question at a time until there is no material ambiguity left.
+- Add brief comments to each function/class targeting an experienced developer.
+- Ask all the clarifying questions you need to understand the context, one at a time until there is no material ambiguity left.
 - After clarification, present the implementation plan as numbered steps and wait for user approval.
-- For each step, present 2-3 approaches, state the recommended one, and wait for the user to choose or approve.
+- For each step, present 2-3 approaches (prefer a visual representation), state the recommended one, and wait for the user to choose or approve.
 - If the user asks to implement immediately, still complete the workflow first unless they explicitly say: "skip the skill workflow".
 - If you cannot follow this workflow, say so and stop instead of proceeding.
 
@@ -196,3 +198,5 @@ Implementation is forbidden until:
  3. the approach for the current step is approved
 
 !IMPORTANT: The implementation should proceed step by step!
+!IMPORTANT: The developer should always stay in the loop and uderstand well the context of the implementation!
+!IMPORTANT: The single step implementation should be easy to follow and understand!
