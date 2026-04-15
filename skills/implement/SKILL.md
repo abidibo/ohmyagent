@@ -18,7 +18,7 @@ You MUST follow strictly this workflow:
 1 - **Explore the implementation details**. Ask the user to provide all needed details for the implementation, until you think the plan is clear enough to proceed. Read files you think are relevant, git logs, commits and anything you think can help you understand better the context.
 2 - **Ask clarifying questions**. One at a time, understand purpose, success criteria. Important! Ask all the questions you need to properly understand the context of the implementation. Prefer visual representation. If you think it's worth it, create a static html js css frontend for it with diagrams and flows in a tmp dir and xdg-open in the browser to let the user see it.
 3 - **Divide the implementation plan in steps**. Ask the user to review the steps, and if he wants to merge them, modify or delete any or add some steps.
-4 - **Propose 2-3 approaches**. Each step at a time. Propose 2 or 3 steps with your recommendation and why. Have the user accept its preference or if he wants something different.
+4 - **Propose 2-3 approaches**. Each step at a time. Print brief summary of the step description. Propose 2 or 3 steps with your recommendation and why. Have the user accept its preference or if he wants something different.
 5 - **Implement**. Implement the chosen approach.
 6 - **Self review**. Optimize code for DRY principles and fix errors before user delivery
 7 - **Review**. Ask the user to review. If the user is satisfied with the implementation, go on, otherwise ask for corrections.
@@ -54,6 +54,19 @@ workflow:
       agent_actions:
         - Ask the user for missing implementation details.
         - Continue gathering details until the plan is clear enough to proceed.
+        - Check if the user is implementing from a spec: look for a spec.md file in any specs/ subdirectory relevant to this task.
+        - If a spec folder is found, check for the presence of a progress.yaml file in that same folder.
+        - If progress.yaml exists:
+            - Load it and use it throughout the session to track task completion.
+            - Identify the resume point: find the first step whose status is not "completed".
+            - If all steps are completed, inform the user: "progress.yaml shows all steps completed. Nothing left to implement."
+              Then exit — do not enter the implementation workflow.
+            - If some steps are completed and some are not, inform the user:
+              "Found progress.yaml — resuming from step <N> (<step title>). Steps 1–<N-1> are already completed and will be skipped."
+            - If no steps are completed yet, inform the user:
+              "Found progress.yaml — I'll update it as each step is completed."
+            - Skip all steps whose status is "completed" when entering the propose_approaches loop.
+        - If progress.yaml does not exist, do not mention it or create it.
       exit_condition:
         - The plan is clear enough to proceed.
 
@@ -75,12 +88,17 @@ workflow:
         - Break the implementation into discrete steps.
         - Present the steps to the user for review.
         - Ask whether the user wants to merge, modify, delete, or add steps.
+        - Once steps are approved, calculate the total potential agent usage for this session:
+            post_step_agents = number_of_steps × 5
+            final_review_agents = 6
+            total = post_step_agents + final_review_agents
+        - Warn the user if total > 20: "Note — this session could use up to {total} agents if you accept every post-step code review. If your runtime has a session agent limit, consider skipping per-step reviews and only running the final full review."
       exit_condition:
         - The user approves the implementation steps.
 
     - id: propose_approaches
       title: Propose approaches for current step
-      objective: Choose how to execute the current step.
+      objective: After a brief description of the step, choose how to execute the current step.
       agent_actions:
         - Focus on one implementation step at a time.
         - Propose 2 or 3 approaches for that step.
@@ -118,6 +136,25 @@ workflow:
         - Apply corrections and re-review until satisfied.
       exit_condition:
         - The user is satisfied with the current step.
+
+    - id: update_progress
+      title: Update progress file
+      objective: Mark the current step and its tasks as completed in progress.yaml, with timestamps.
+      agent_actions:
+        - If progress.yaml was found at session start:
+            - Capture the current ISO 8601 datetime (e.g. 2026-04-15T14:32:00).
+            - Set the current step's status to "completed" and set its completed_at to now.
+              If the step has no started_at yet, also set started_at to now.
+            - Set all tasks under the current step to status "completed" and set their completed_at to now.
+              If a task has no started_at, set it to now as well.
+            - If this is the first step being completed, set the top-level status to "in_progress"
+              and set the top-level started_at to now (if not already set).
+            - If this is the last step, set the top-level status to "completed"
+              and set the top-level completed_at to now.
+            - Write the updated progress.yaml back to disk.
+        - If no progress.yaml exists, skip silently.
+      exit_condition:
+        - progress.yaml updated, or skipped if not present.
 
     - id: code_review_gate
       title: Offer code review (optional)
@@ -178,8 +215,12 @@ workflow:
       when: user_requests_corrections
 
     - from: review
-      to: code_review_gate
+      to: update_progress
       when: user_is_satisfied
+
+    - from: update_progress
+      to: code_review_gate
+      when: progress_updated_or_skipped
 
     - from: code_review_gate
       to: propose_approaches

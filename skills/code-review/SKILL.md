@@ -19,7 +19,7 @@ Any response that skips a required step is incorrect. Do not optimize for speed 
 - Triggered: after each implement step's review phase, before moving to the next step.
 - **You MUST ask the user**: "Would you like to run a code review on this step?" If the user says no, skip immediately and continue the implement workflow.
 - Scope: only the files changed in the current step.
-- Lighter review: run 5 parallel agents (skip git history check).
+- Lighter review: run 5 agents **sequentially** (not in parallel) to conserve the session's agent budget. Skip git history check.
 
 ### 2. Post-session review (during implement workflow)
 
@@ -50,7 +50,11 @@ workflow:
   global_rules:
     - This skill is ALWAYS conditional. Never run it without asking the user first.
     - If the user declines, skip immediately with no further discussion.
-    - All review agents run in parallel for speed.
+    - Post-step mode: run agents sequentially to conserve session agent budget.
+    - Post-session and standalone mode: run agents in parallel for speed.
+    - Always run agents in foreground mode (never background) to guarantee completion before dismissal.
+    - Before spawning a new batch, verify no agents from a previous review in this session are still open. If any are, close them first.
+    - After all agents in a batch complete, explicitly dismiss or close each one before proceeding.
     - Findings are categorized as critical, important, or minor.
     - Critical and important issues are auto-fixed without individual confirmation.
     - Minor issues require user decision.
@@ -77,14 +81,16 @@ workflow:
         - Scope and spec availability are determined.
 
     - id: spawn_agents
-      title: Spawn parallel review agents
-      objective: Run all applicable review agents in parallel.
+      title: Spawn review agents
+      objective: Run all applicable review agents and collect findings.
       agent_actions:
-        - Spawn agents in parallel using the Agent tool.
-        - Each agent receives the list of changed files and relevant context.
-        - Wait for all agents to complete.
+        - In post-step mode, spawn agents one at a time (sequentially). Wait for each to complete and dismiss it before spawning the next.
+        - In post-session and standalone mode, spawn all agents in parallel. Wait for all to complete, then dismiss each one.
+        - Each agent receives only the files in scope (not the entire codebase) and relevant context.
+        - Before spawning, verify no agents from a previous review in this session are still open. Close any that are.
+        - After all agents complete, explicitly dismiss or close each agent to free session resources.
       exit_condition:
-        - All agents have returned their findings.
+        - All agents have returned their findings and have been dismissed.
 
     - id: present_findings
       title: Present findings
@@ -162,10 +168,12 @@ workflow:
 
 ## Review Agents
 
-Each agent is spawned in parallel using the Agent tool. Every agent receives:
-- The list of files in scope (changed files)
-- The full file contents for context
+Agents are spawned via the Agent tool. Mode determines parallelism (see global rules). Every agent receives:
+- Only the files in scope (changed files for the current step or session — not the full codebase)
+- The relevant file contents for context
 - The spec/requirements (if available, for spec compliance)
+
+Each agent must be explicitly dismissed after its results are collected.
 
 ### Agent 1: Spec Compliance
 
@@ -256,8 +264,11 @@ These are **opt-in only**. If the user says no, proceed without any review.
 ## Key Principles
 
 - **Always conditional**. Never run without explicit user consent.
-- **Parallel execution**. All agents run simultaneously for speed.
+- **Sequential in post-step, parallel in post-session/standalone**. Conserve session agent budget across repeated reviews.
+- **Foreground agents only**. Never spawn background agents — foreground guarantees completion before dismissal.
+- **Always dismiss agents**. Treat agents like open connections: close them explicitly after results are collected.
+- **Pre-spawn checkpoint**. Before launching a new batch, confirm no agents from a prior review are still open.
+- **Scope containment**. Pass only the relevant changed files to each agent, never the full codebase.
 - **Actionable output**. Every finding must include file, line(s), and a clear description.
 - **Auto-fix critical/important**. Don't waste the user's time on obvious fixes.
 - **User decides on minor**. Respect the user's time and priorities.
-- **Scope awareness**. Review only what's relevant, not the entire codebase.

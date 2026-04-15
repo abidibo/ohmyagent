@@ -1,11 +1,91 @@
 ---
 name: spec
-description: Guide the user through creating a thorough feature specification file. Use when the user wants to write a spec for a new feature or something new to implement. Especially when invoked directly.
+description: Spec-driven development skill. Supports subcommands — `/spec` or `/spec create` to write a new spec, `/spec status` to show progress across all specs in the project. Use when the user wants to write a spec or check spec progress. Especially when invoked directly.
 ---
 
 # Spec skill
 
 Any response that skips a required step is incorrect. Do not optimize for speed over compliance.
+
+## Invocation
+
+This skill supports subcommands. Check the invocation before doing anything else:
+
+- `/spec` or `/spec create` — run the full spec creation workflow (default).
+- `/spec status` — show a summary table of all specs in the project.
+- `/spec status <feature-name>` — show detailed step-by-step progress for a single spec.
+
+If no argument is given, default to `create`.
+
+---
+
+## Command: status
+
+### `/spec status` — all specs
+
+1. Search for all `progress.yaml` files under `specs/` in the current project root:
+   ```bash
+   find specs -name "progress.yaml" | sort
+   ```
+2. Read each file and extract: `feature`, `status`, total task count, completed task count.
+3. Present a formatted summary table:
+
+   ```
+   Feature              Progress         Tasks      Status
+   ──────────────────── ──────────────── ────────── ────────────
+   user-auth            ████████░░░░     6 / 10     in_progress
+   payment-flow         ░░░░░░░░░░░░     0 / 5      pending
+   search-index         ████████████    12 / 12     completed
+   ```
+
+   - Progress bar: 12 chars wide. Fill `█` proportional to completed/total tasks, remaining with `░`.
+   - Sort: `in_progress` first, then `pending`, then `completed`.
+   - If `specs/` does not exist or contains no `progress.yaml` files, print:
+     "No progress files found. Run `/spec` to create a spec, then opt in to progress tracking."
+
+4. After the table, print a one-line summary:
+   ```
+   3 specs — 1 completed, 1 in progress, 1 pending
+   ```
+
+### `/spec status <feature-name>` — single spec detail
+
+1. Look for `specs/<feature-name>/progress.yaml`. If not found, print:
+   "No progress file found for '<feature-name>'. Check the feature name or run `/spec status` to list all specs."
+2. Read the file and present a detailed breakdown — one section per step, with all its tasks listed:
+
+   ```
+   user-auth — in_progress — 6 / 10 tasks completed
+
+   Step 1: Add JWT middleware  [completed]
+     ✔  1.1  Install and configure jwt library
+     ✔  1.2  Write middleware function that validates token from Authorization header
+     ✔  1.3  Attach decoded user payload to request context
+
+   Step 2: Protect routes  [in_progress]
+     ✔  2.1  List all routes requiring authentication
+     ✗  2.2  Apply middleware to protected route group
+     ✗  2.3  Return 401 on missing or invalid token
+
+   Step 3: Write tests  [pending]
+     ✗  3.1  Test valid token is accepted
+     ✗  3.2  Test expired token is rejected
+     ✗  3.3  Test missing token returns 401
+   ```
+
+   - `✔` for `completed` tasks, `✗` for `pending` or `in_progress`.
+   - Step status shown inline: `[completed]`, `[in_progress]`, `[pending]`.
+   - Print a one-line summary at the top: `<feature> — <status> — X / Y tasks completed`.
+
+Do not enter the creation workflow. Exit after printing the status.
+
+---
+
+## Command: create (default)
+
+When invoked as `/spec` or `/spec create`:
+
+Any response that skips a required step is incorrect.
 
 ## When to use
 
@@ -20,6 +100,51 @@ Determine the output path before starting:
 3. If it does not exist, create: `specs/<feature-name>/spec.md`
 
 The `<feature-name>` is derived from the feature title provided by the user (kebab-case).
+
+### Optional: progress.yaml
+
+If the user opts in (asked at the end of the workflow), generate `specs/<feature-name>/progress.yaml` alongside the spec. This file expands each spec step into nearly atomic tasks and tracks their completion status. It is designed to be read and updated by the implement skill during implementation.
+
+```yaml
+feature: <feature-name>
+spec: specs/<feature-name>/spec.md
+created: <ISO 8601 date>
+status: pending          # pending | in_progress | completed
+started_at: ~            # set when first step is started
+completed_at: ~          # set when all steps are completed
+
+steps:
+  - id: 1
+    title: "Step title from spec"
+    status: pending      # pending | in_progress | completed
+    started_at: ~        # set when step begins
+    completed_at: ~      # set when step is marked completed
+    tasks:
+      - id: "1.1"
+        description: "Install and configure the X library"
+        status: pending  # pending | in_progress | completed
+        started_at: ~
+        completed_at: ~
+      - id: "1.2"
+        description: "Write the Y function in src/module.py"
+        status: pending
+        started_at: ~
+        completed_at: ~
+  - id: 2
+    title: "Another step"
+    status: pending
+    started_at: ~
+    completed_at: ~
+    tasks:
+      - id: "2.1"
+        description: "..."
+        status: pending
+```
+
+**Task granularity rules:**
+- Each task must be a single, independently actionable unit of work (one function, one file, one config change).
+- Do not copy step titles as tasks. Derive tasks from the step's actual content and subtasks.
+- Tasks should be specific enough that a developer can tick them off without ambiguity.
 
 ## Spec file structure
 
@@ -201,6 +326,39 @@ workflow:
       exit_condition:
         - The user is satisfied with the spec.
 
+    - id: generate_progress
+      title: Generate progress file (optional)
+      objective: Optionally produce a progress.yaml alongside the spec to track implementation.
+      agent_actions:
+        - Ask the user: "Would you like a progress.yaml file to track implementation of this spec?"
+        - If declined, skip and end.
+        - If accepted:
+            - For each implementation step in the spec, expand it into nearly atomic tasks.
+              Each task must be independently actionable — a single function, file, or config change.
+              Do not copy step titles verbatim; derive granular tasks from the step's content.
+            - Write progress.yaml in the same directory as spec.md.
+            - Format (YAML):
+                feature: <feature-name>
+                spec: <relative path to spec.md>
+                created: <today's date ISO 8601>
+                status: pending          # pending | in_progress | completed
+                started_at: ~            # set when first step is started
+                completed_at: ~          # set when all steps are completed
+                steps:
+                  - id: <step number>
+                    title: <step title>
+                    status: pending      # pending | in_progress | completed
+                    started_at: ~        # set when step begins
+                    completed_at: ~      # set when step is marked completed
+                    tasks:
+                      - id: <step>.<task>
+                        description: <atomic task description>
+                        status: pending  # pending | in_progress | completed
+                        started_at: ~    # set when task begins
+                        completed_at: ~  # set when task is marked completed
+      exit_condition:
+        - User declines, OR progress.yaml is written.
+
   transitions:
     - from: kickoff
       to: explore
@@ -247,8 +405,12 @@ workflow:
       when: user_requests_corrections
 
     - from: review
-      to: end
+      to: generate_progress
       when: user_is_satisfied
+
+    - from: generate_progress
+      to: end
+      when: user_declines_or_progress_file_written
 ```
 
 ## Key principles
