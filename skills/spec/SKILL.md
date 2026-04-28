@@ -24,9 +24,11 @@ If no argument is given, default to `create`.
 ### `/spec status` — all specs
 
 1. Search for all `progress.yaml` files under `specs/` in the current project root:
+
    ```bash
    find specs -name "progress.yaml" | sort
    ```
+
 2. Read each file and extract: `feature`, `status`, total task count, completed task count.
 3. Present a formatted summary table:
 
@@ -44,6 +46,7 @@ If no argument is given, default to `create`.
      "No progress files found. Run `/spec` to create a spec, then opt in to progress tracking."
 
 4. After the table, print a one-line summary:
+
    ```
    3 specs — 1 completed, 1 in progress, 1 pending
    ```
@@ -142,6 +145,7 @@ steps:
 ```
 
 **Task granularity rules:**
+
 - Each task must be a single, independently actionable unit of work (one function, one file, one config change).
 - Do not copy step titles as tasks. Derive tasks from the step's actual content and subtasks.
 - Tasks should be specific enough that a developer can tick them off without ambiguity.
@@ -174,7 +178,7 @@ For each step:
 - Any relevant file paths or interfaces
 
 ## Visual Aids
-Tables, diagrams, flow charts, data models — only when they genuinely clarify the design.
+Tables, zoomable diagrams, zoomable flow charts, data models — only when they genuinely clarify the design.
 If an HTML visual was generated during the session, reference or embed it here.
 
 ## Acceptance Criteria
@@ -186,6 +190,7 @@ For each alternative: what it was, why it was considered, why it was rejected.
 ```
 
 The depth of each section scales with the detail level chosen by the user:
+
 - `low` — brief descriptions, pseudocode only, key decisions noted
 - `medium` — step-by-step descriptions, partial code examples, key file references
 - `high` — full code examples, all file paths, function signatures, edge cases, complete decision rationale
