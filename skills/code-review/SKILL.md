@@ -169,6 +169,7 @@ workflow:
 ## Review Agents
 
 Agents are spawned via the Agent tool. Mode determines parallelism (see global rules). Every agent receives:
+
 - Only the files in scope (changed files for the current step or session — not the full codebase)
 - The relevant file contents for context
 - The spec/requirements (if available, for spec compliance)
@@ -204,6 +205,7 @@ Each agent must be explicitly dismissed after its results are collected.
   - Correct use of existing abstractions and utilities.
   - Proper module boundaries and separation of concerns.
   - Consistent patterns with the rest of the project.
+  - Do not treat every not matched pattern as an IMPORTANT issue, think about it, sometimes maybe we're actually improving the codebase.
 - **Output**: list of findings with severity, file, line(s), and description.
 
 ### Agent 4: DRY Principle

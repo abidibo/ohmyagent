@@ -18,7 +18,7 @@ You MUST follow strictly this workflow:
 1 - **Explore the implementation details**. Ask the user to provide all needed details for the implementation, until you think the plan is clear enough to proceed. Read files you think are relevant, git logs, commits and anything you think can help you understand better the context.
 2 - **Ask clarifying questions**. One at a time, understand purpose, success criteria. Important! Ask all the questions you need to properly understand the context of the implementation. Prefer visual representation. If you think it's worth it, create a static html js css frontend for it with diagrams and flows in a tmp dir and xdg-open in the browser to let the user see it.
 3 - **Divide the implementation plan in steps**. Ask the user to review the steps, and if he wants to merge them, modify or delete any or add some steps.
-4 - **Propose 2-3 approaches**. Each step at a time. Print brief summary of the step description. Propose 2 or 3 steps with your recommendation and why. Have the user accept its preference or if he wants something different.
+4 - **Propose 2-3 approaches**. Each step at a time. Print brief summary of the step description. Propose 2 or 3 different approaches with your recommendation and why. Choose different approaches, think also as a human, so try to provide differ manners of doing the same functionality. Have the user accept its preference or if he wants something different.
 5 - **Implement**. Implement the chosen approach.
 6 - **Self review**. Optimize code for DRY principles and fix errors before user delivery
 7 - **Review**. Ask the user to review. If the user is satisfied with the implementation, go on, otherwise ask for corrections.
