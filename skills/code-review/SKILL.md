@@ -26,7 +26,7 @@ Any response that skips a required step is incorrect. Do not optimize for speed 
 - Triggered: after all implement steps are completed.
 - **You MUST ask the user**: "Would you like to run a full code review on the entire implementation?" If the user says no, skip entirely.
 - Scope: all files changed during the entire implementation session.
-- Full review: run all 6 parallel agents.
+- Full review: run all agents in parallel.
 
 ### 3. Standalone review
 
@@ -36,7 +36,7 @@ Any response that skips a required step is incorrect. Do not optimize for speed 
   - Specific files or directories
   - Staged/unstaged changes
 - Spec determination: ask the user if they have a spec or requirements document to check against. If yes, use it for spec compliance. If no, skip the spec compliance agent.
-- Full review: run all applicable agents (5 or 6 depending on spec availability).
+- Full review: run all applicable agents (4 or 5 depending on spec availability).
 
 ## Workflow
 
@@ -225,16 +225,6 @@ Each agent must be explicitly dismissed after its results are collected.
   - Resource leaks (unclosed connections, missing cleanup).
   - Incorrect boolean logic or control flow.
   - Security vulnerabilities (injection, XSS, etc.).
-- **Output**: list of findings with severity, file, line(s), and description.
-
-### Agent 6: Git History Check
-
-- **Only in**: post-session and standalone modes (skipped in post-step mode).
-- **Goal**: review the git history for quality.
-- **Checks**:
-  - Commits are well-structured (not too large, logical grouping).
-  - No accidental files committed (secrets, build artifacts, .env files).
-  - Commit messages are meaningful and descriptive.
 - **Output**: list of findings with severity, file, line(s), and description.
 
 ## Output Format
