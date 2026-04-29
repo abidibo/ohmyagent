@@ -181,6 +181,14 @@ For each step:
 Tables, zoomable diagrams, zoomable flow charts, data models — only when they genuinely clarify the design.
 If an HTML visual was generated during the session, reference or embed it here.
 
+## Failure Modes & Recovery
+For each implementation step that involves external services, data mutations, concurrency, user input, or any operation that can fail:
+- Identify the failure modes (network errors, timeouts, invalid state, partial writes, race conditions, etc.)
+- Describe the chosen recovery strategy (retry with backoff, fallback, graceful degradation, fail-fast, rollback, idempotency guard, etc.)
+- State what the user/system observes when the failure occurs (error message, default behavior, logged warning, etc.)
+
+Scale depth to risk: a simple CRUD endpoint may need one line; a multi-step payment flow needs detailed per-step analysis.
+
 ## Acceptance Criteria
 A checklist of observable, verifiable conditions that confirm the feature is correctly and completely implemented.
 
@@ -224,9 +232,15 @@ You MUST follow this workflow strictly. Do not skip or reorder steps.
 
    Ask the user to review. Allow merging, splitting, reordering, adding, or removing steps before proceeding.
 
-7. **Write the spec** — Once steps are approved, write the full `spec.md` file following the structure above. Apply the chosen detail level throughout.
+7. **Failure mode review** — Once steps are approved, review each step for potential failure modes. For steps involving external services, data mutations, concurrency, user input, or any operation that can fail:
+   - Identify what can go wrong (network errors, timeouts, invalid state, partial writes, race conditions, etc.)
+   - Propose a recovery strategy for each (retry, fallback, graceful degradation, fail-fast, rollback, etc.)
+   - Present the failure modes and proposed strategies to the user for review. Ask how they want to handle each case — do not assume.
+   - Scale depth to complexity: skip this for purely structural or trivial steps; be thorough for anything that touches I/O, state, or external systems.
 
-8. **Review** — Ask the user to review the spec. Collect corrections and revise until the user is satisfied.
+8. **Write the spec** — Once steps and failure modes are approved, write the full `spec.md` file following the structure above. Apply the chosen detail level throughout.
+
+9. **Review** — Ask the user to review the spec. Collect corrections and revise until the user is satisfied.
 
 ## Process Flow
 
@@ -246,6 +260,7 @@ workflow:
     - Propose 2 to 3 solution approaches with a recommendation before settling on one.
     - Implementation steps must be atomic and granular enough to be implemented independently.
     - Include acceptance criteria in every spec.
+    - Review each implementation step for failure modes. For steps involving I/O, state mutations, concurrency, or external dependencies, identify what can go wrong and propose recovery strategies. Ask the user — do not assume. Scale depth to risk.
     - Include alternatives only when real tradeoffs were surfaced — omit otherwise.
     - Explore the codebase proactively but declare what you are reading and why.
 
@@ -311,6 +326,19 @@ workflow:
         - Allow the user to merge, split, reorder, add, or remove steps.
       exit_condition:
         - The user approves the implementation step plan.
+
+    - id: failure_modes
+      title: Failure mode review
+      objective: Identify failure modes and agree on recovery strategies before writing the spec.
+      agent_actions:
+        - For each approved step, assess whether it involves external services, data mutations, concurrency, user input, or any operation that can fail.
+        - For steps with failure potential, identify specific failure modes (network errors, timeouts, invalid state, partial writes, race conditions, permission errors, etc.).
+        - Propose a recovery strategy for each failure mode (retry with backoff, fallback, graceful degradation, fail-fast, rollback, idempotency guard, circuit breaker, etc.).
+        - Present failure modes and proposed strategies to the user. Ask how they want to handle each case — do not assume or decide unilaterally.
+        - Scale depth to risk — skip trivial or purely structural steps; be thorough for anything that touches I/O, state, or external systems.
+        - If no step has meaningful failure modes, state that explicitly and move on.
+      exit_condition:
+        - User approves failure mode handling for all relevant steps, or confirms no failure modes need addressing.
 
     - id: write_spec
       title: Write the spec
@@ -398,8 +426,16 @@ workflow:
       when: user_requests_step_changes
 
     - from: plan_steps
-      to: write_spec
+      to: failure_modes
       when: steps_approved
+
+    - from: failure_modes
+      to: failure_modes
+      when: user_requests_changes_to_failure_handling
+
+    - from: failure_modes
+      to: write_spec
+      when: failure_modes_approved_or_none_applicable
 
     - from: write_spec
       to: review
@@ -432,7 +468,7 @@ workflow:
 
 ## Mandatory rules
 
-- Do not write the spec until steps 1–4 (kickoff, explore, clarify, propose approach) have been completed.
+- Do not write the spec until steps 1–4 (kickoff, explore, clarify, propose approach) have been completed and failure modes have been reviewed.
 - Do not proceed past clarification while any material ambiguity about the problem remains.
 - Always present implementation steps for user approval before writing the spec.
 - Every step and decision in the spec must reflect best practices: project conventions first, ecosystem best practices second. Any deviation must be explicitly justified.
@@ -446,6 +482,7 @@ Writing the spec is forbidden until:
 1. The problem is fully understood with no ambiguity remaining.
 2. A solution approach has been selected by the user.
 3. The implementation steps have been reviewed and approved by the user.
+4. Failure modes have been identified and recovery strategies approved by the user (or explicitly confirmed as not applicable).
 
 !IMPORTANT: The spec reflects a shared understanding between the user and the agent — never write it unilaterally.
 

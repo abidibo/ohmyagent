@@ -42,8 +42,8 @@ If all steps are completed, inform the user and exit.
 
 ### 2. Confirm and start
 
-Ask: "Ready to implement from step N — {title}. Proceed?"
-Wait for confirmation before spawning any subagent.
+Ask: "Ready to implement from step N — {title}. Would you like a self-review after each step? (yes/no)"
+Wait for confirmation before spawning any subagent. Record the user's self-review preference — it applies to all steps in this session.
 
 ### 3. Step loop
 
@@ -55,7 +55,10 @@ Print: `--- Step N / M: {title} ---`
 
 #### 3b. Mark in progress
 
-Update `progress.yaml`: set the step's `status` to `in_progress` and `started_at` to now (ISO 8601). If this is the first step started, also set the top-level `status` to `in_progress` and `started_at`.
+Update `progress.yaml` **and write the file to disk immediately**:
+- Set the step's `status` to `in_progress` and `started_at` to the current timestamp (ISO 8601, e.g. `2026-04-29T14:30:00Z`). **`started_at` must never be left as `~` or `null` when status is `in_progress`.**
+- Set every task under this step to `status: in_progress` and `started_at` to the same timestamp.
+- If this is the first step started, also set the top-level `status` to `in_progress` and `started_at` to the same timestamp.
 
 #### 3c. Spawn implementation subagent
 
@@ -93,9 +96,11 @@ You are implementing step N of M from a software spec. You have no conversation 
 
 Read the subagent's report. Print it to the user under a clear heading: `### Step N result`.
 
-#### 3e. Self-review
+#### 3e. Self-review (conditional)
 
-Spawn a **foreground** self-review subagent. Pass the same context as 3c (spec content, step content, completed-steps summary) plus the implementation subagent's report. Instruct it to:
+**Skip this step if the user declined self-review in step 2.**
+
+If enabled, spawn a **foreground** self-review subagent. Pass the same context as 3c (spec content, step content, completed-steps summary) plus the implementation subagent's report. Instruct it to:
 
 1. Read every file that was created or modified in this step.
 2. Check for bugs, logic errors, missing edge cases, or clear deviations from the spec.
@@ -106,11 +111,10 @@ The self-review subagent must not implement future steps or touch files unrelate
 
 #### 3f. Update progress
 
-Update `progress.yaml`:
-- Set the step's `status` to `completed`, `completed_at` to now.
-- Set all tasks under the step to `completed` with `completed_at`.
-- If this was the last step: set top-level `status` to `completed`, `completed_at` to now.
-- Write the file.
+Update `progress.yaml` and write the file to disk:
+- Set the step's `status` to `completed` and `completed_at` to the current timestamp (ISO 8601). Verify that `started_at` is already set — if it is missing, set it to the same timestamp now.
+- Set all tasks under the step to `status: completed` and `completed_at` to the current timestamp. For each task, verify `started_at` is set — if missing, set it to the same timestamp.
+- If this was the last step: set top-level `status` to `completed` and `completed_at` to the current timestamp. Verify top-level `started_at` is set.
 
 #### 3g. Next step
 
@@ -165,12 +169,14 @@ steps:
 
 If `progress.yaml` does not exist, generate it from the spec's Implementation Steps section before starting. Use the same format. Each step gets tasks derived from the step's sub-bullets (not copied from the title).
 
+**Timestamp invariant:** any entry (top-level, step, or task) with `status: in_progress` or `status: completed` **must** have a non-null `started_at`. Any entry with `status: completed` **must** also have a non-null `completed_at`. Before writing `progress.yaml`, validate these invariants and fill any missing timestamps with the current time.
+
 ---
 
 ## Key principles
 
 - **Main agent = orchestrator.** You manage state, prompt construction, user interaction, and progress tracking. You do not write code.
 - **Subagent = implementor.** It reads files, writes code, and reports back. It has no memory.
-- **Self-review is mandatory.** After each implementation subagent, always spawn a self-review subagent to catch and fix bugs before moving on.
+- **Self-review is opt-in per session.** The user chooses once at the start whether to run self-review after each step. The final code review is always mandatory.
 - **Progress is durable.** progress.yaml is updated after every step so the session can be resumed across conversations.
 - **If you cannot follow this workflow, say so and stop.**
