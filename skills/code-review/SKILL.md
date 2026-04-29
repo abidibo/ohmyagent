@@ -168,13 +168,31 @@ workflow:
 
 ## Review Agents
 
-Agents are spawned via the Agent tool. Mode determines parallelism (see global rules). Every agent receives:
+Mode determines parallelism (see global rules). Every agent receives:
 
 - Only the files in scope (changed files for the current step or session — not the full codebase)
 - The relevant file contents for context
 - The spec/requirements (if available, for spec compliance)
 
-Each agent must be explicitly dismissed after its results are collected.
+### Platform-specific spawning
+
+**Claude Code** — spawn agents via the Agent tool. Use the `model` parameter to control which model each agent runs on:
+
+| Agent | Model | Rationale |
+|-------|-------|-----------|
+| Spec Compliance | `opus` | Needs deep reasoning to compare spec vs implementation |
+| Code Quality | `sonnet` | Pattern matching, fast enough for style checks |
+| Architecture Adherence | `opus` | Requires broad codebase understanding |
+| DRY Principle | `sonnet` | Duplication detection is mostly mechanical |
+| Bug Detection | `opus` | Security and logic bugs need strongest reasoning |
+
+**Codex** — reference the pre-defined TOML agents by name when spawning. The TOML files are in the `codex/agents/` directory of this repository and should be symlinked to `~/.codex/agents/` or `.codex/agents/`. Spawn agents by name:
+
+- `code-review-spec-compliance`
+- `code-review-quality`
+- `code-review-architecture`
+- `code-review-dry`
+- `code-review-bug-detector`
 
 ### Agent 1: Spec Compliance
 
