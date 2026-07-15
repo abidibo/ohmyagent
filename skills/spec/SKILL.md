@@ -231,7 +231,7 @@ For small, single-component features (a handful of steps, no new architecture), 
 
 4. **Propose a solution approach** — Present 2 or 3 possible approaches with a clear recommendation and rationale. Ask the user to choose or propose something different.
 
-5. **Visual aid (when helpful)** — If a diagram, flow, or data model would clarify the design or the implementation plan, generate a static HTML file in a tmp directory and open it with `xdg-open`. Use tables, flowcharts, component diagrams, data models — whatever best represents the concept. Generate one when the design has structure a diagram or table communicates faster than prose; skip it for single-file changes. After a long brainstorming session, include the decision ledger as a section of the visual so the user can audit everything agreed in one place. All generated HTML must follow `STYLE.md` exactly.
+5. **Visual aid (when helpful)** — If a diagram, flow, or data model would clarify the design or the implementation plan, generate a static HTML file in a tmp directory and open it with `xdg-open`. Use tables, flowcharts, component diagrams, data models — whatever best represents the concept. Generate one when the design has structure a diagram or table communicates faster than prose; skip it for single-file changes. After a long brainstorming session, include the decision ledger as a section of the visual so the user can audit everything agreed in one place. All generated HTML must follow the STYLE.md section at the bottom of this skill file exactly. If no display is available (headless/remote session), save the file and give the user its path instead of running `xdg-open`.
 
 6. **Present the implementation steps** — Break the solution into ordered, atomic, granular steps. Display them in a table for review:
 
@@ -298,7 +298,7 @@ workflow:
         - Ask the user for the detail level (low / medium / high).
         - For multi-component or greenfield projects, settle spec scoping (single spec vs master + sub-specs vs first-phase-only) with a recommendation.
       exit_condition:
-        - Feature description and detail level are provided.
+        - Feature description and detail level are provided (and, for multi-component projects, the spec scoping decision).
 
     - id: explore
       title: Codebase exploration
@@ -497,7 +497,7 @@ workflow:
 
 ## Mandatory rules
 
-- Do not write the spec until steps 1–4 (kickoff, explore, clarify, propose approach) have been completed and failure modes have been reviewed.
+- Do not write the spec until steps 1–4 (kickoff, explore, clarify, propose approach) are complete and the step plan (step 6) and failure modes (step 7) are approved — the same conditions as the Execution gate.
 - Do not proceed past clarification while any material ambiguity about the problem remains.
 - Always present implementation steps for user approval before writing the spec.
 - Every step and decision in the spec must reflect best practices: project conventions first, ecosystem best practices second. Any deviation must be explicitly justified.
