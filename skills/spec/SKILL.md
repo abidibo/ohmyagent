@@ -293,9 +293,10 @@ workflow:
       title: Kickoff
       objective: Collect the feature description, context, and desired detail level.
       agent_actions:
-        - Ask the user to describe what they want to build and why.
-        - Ask the user to share relevant links, documents, or code.
+        - Extract the feature description and any already-made decisions from the conversation first; only ask for what is missing.
+        - Ask the user to describe what they want to build and why (if not already provided), and to share relevant links, documents, or code.
         - Ask the user for the detail level (low / medium / high).
+        - For multi-component or greenfield projects, settle spec scoping (single spec vs master + sub-specs vs first-phase-only) with a recommendation.
       exit_condition:
         - Feature description and detail level are provided.
 
@@ -336,7 +337,7 @@ workflow:
       title: Visual aid (conditional)
       objective: Clarify design or implementation plan visually when it adds value.
       agent_actions:
-        - Judge whether a visual would genuinely help. Lean toward yes.
+        - Judge whether a visual would genuinely help - structure a diagram or table shows faster than prose. Skip for single-file changes.
         - If yes, generate a static HTML file with diagrams/tables/flows in a tmp dir.
           Follow the STYLE.md section at the bottom of this file exactly for all markup, tokens, CDN libraries, and aesthetics.
         - Open the file with xdg-open.
@@ -500,7 +501,7 @@ workflow:
 - Do not proceed past clarification while any material ambiguity about the problem remains.
 - Always present implementation steps for user approval before writing the spec.
 - Every step and decision in the spec must reflect best practices: project conventions first, ecosystem best practices second. Any deviation must be explicitly justified.
-- If the user asks to skip the workflow, still complete at minimum: problem understanding + step approval.
+- If the user asks to skip the workflow, still complete at minimum: problem understanding + step approval. Failure modes may then be handled as proposed defaults inside that same approval message — the execution gate's failure-mode item is satisfied by the bundled approval.
 - If you cannot follow this workflow, say so and stop instead of proceeding.
 
 ## Execution gate
