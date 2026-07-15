@@ -1,6 +1,6 @@
 ---
 name: spec
-description: Spec-driven development skill. Supports subcommands — `/spec` or `/spec create` to write a new spec, `/spec status` to show progress across all specs in the project. Use when the user wants to write a spec or check spec progress. Especially when invoked directly.
+description: Spec-driven development skill. Supports subcommands — `/spec` or `/spec create` to write a new spec, `/spec status` to show progress across all specs in the project. Use when the user wants to write a spec or check spec progress. Especially when invoked directly. Spec creation runs an interactive brainstorming workflow — themed decision rounds with options and recommendations, scaled to project size, with master + sub-spec support for multi-component systems.
 ---
 
 # Spec skill
@@ -207,22 +207,31 @@ The depth of each section scales with the detail level chosen by the user:
 
 You MUST follow this workflow strictly. Do not skip or reorder steps.
 
-1. **Kickoff** — Ask the user two things only:
+For small, single-component features (a handful of steps, no new architecture), keep every gate but compress the ceremony: steps 4–7 may be bundled into one message — recommended approach, step table, and failure-mode defaults — closed by a single approval question. The gates exist to guarantee shared understanding, not to maximize round-trips.
+
+1. **Kickoff** — Extract answers from the conversation first when the feature was already discussed; only ask what is missing:
    - *"Describe what you want to build and why. Share any relevant links, documents, or code."*
    - *"What detail level do you want for this spec: low, medium, or high?"*
+   - For multi-component or greenfield projects, also settle spec scoping — single spec, master + sub-specs (see "Multi-spec projects"), or first-phase-only — and, when relevant, the project/feature name. Structured questions with a marked recommendation work well for these.
 
-2. **Codebase exploration** — Before asking clarifying questions, explore the codebase to understand the relevant context. Declare what you are reading and why. Ask the user if there are specific areas to focus on. Read files, git logs, existing patterns — anything that grounds your understanding.
+2. **Codebase exploration** — Before asking clarifying questions, explore the codebase to understand the relevant context. Declare what you are reading and why. Ask the user if there are specific areas to focus on. Read files, git logs, existing patterns — anything that grounds your understanding. When the feature depends on external systems reachable from this session (APIs, MCP servers, services), verify the load-bearing facts with cheap read-only calls now — real IDs, real payload shapes, whether a capability actually exists — and record in the spec what is live-verified versus assumed. A spec pinned to reality beats one pinned to documentation.
 
-3. **Clarify until the problem is unambiguous** — Ask clarifying questions one at a time. Do not proceed to spec writing until you are fully confident about:
+3. **Clarify through themed decision rounds** — Group related open decisions into themed rounds (context/deployment, data model, UX, integrations, runtime, …), 2–4 decisions per round, presented as structured questions (the AskUserQuestion tool when available, otherwise a compact numbered list). One topic gets settled, then you move on — this keeps decision throughput high without overwhelming the user. For each question:
+   - Offer 2–4 concrete options with trade-offs stated in the option descriptions; put your recommendation first, marked "(Recommended)", with the rationale. Users mostly confirm recommendations — the value is that every choice becomes *visible and decided now* instead of buried in the spec later.
+   - Use multi-select when choices are not mutually exclusive.
+   - Treat free-text answers as first-class design input — they often carry the most shaping decisions. If an answer contains a question, answer it concretely before proceeding; if it redirects the design, adapt and confirm the consequence in your next message.
+   - Open each round by recapping what the previous round locked ("Locked: X, Y, Z") and keep a running decision ledger — it prevents relitigating and later becomes a section of the visual and the spec.
+   Scale the number of rounds to the scope: a small feature needs one round or none; a greenfield multi-component system may need many. Do not run ceremony the project doesn't need.
+   Do not proceed to spec writing until you are fully confident about:
    - The exact problem being solved
    - The boundaries of the solution (in scope / out of scope)
    - The success criteria
    - Any constraints or dependencies
-   If uncertain about anything, ask. Never assume.
+   If uncertain about anything material, ask. Never assume.
 
 4. **Propose a solution approach** — Present 2 or 3 possible approaches with a clear recommendation and rationale. Ask the user to choose or propose something different.
 
-5. **Visual aid (when helpful)** — If a diagram, flow, or data model would clarify the design or the implementation plan, generate a static HTML file in a tmp directory and open it with `xdg-open`. Use tables, flowcharts, component diagrams, data models — whatever best represents the concept. Lean toward generating visuals when in doubt. All generated HTML must follow `STYLE.md` exactly.
+5. **Visual aid (when helpful)** — If a diagram, flow, or data model would clarify the design or the implementation plan, generate a static HTML file in a tmp directory and open it with `xdg-open`. Use tables, flowcharts, component diagrams, data models — whatever best represents the concept. Generate one when the design has structure a diagram or table communicates faster than prose; skip it for single-file changes. After a long brainstorming session, include the decision ledger as a section of the visual so the user can audit everything agreed in one place. All generated HTML must follow `STYLE.md` exactly.
 
 6. **Present the implementation steps** — Break the solution into ordered, atomic, granular steps. Display them in a table for review:
 
@@ -235,12 +244,24 @@ You MUST follow this workflow strictly. Do not skip or reorder steps.
 7. **Failure mode review** — Once steps are approved, review each step for potential failure modes. For steps involving external services, data mutations, concurrency, user input, or any operation that can fail:
    - Identify what can go wrong (network errors, timeouts, invalid state, partial writes, race conditions, etc.)
    - Propose a recovery strategy for each (retry, fallback, graceful degradation, fail-fast, rollback, etc.)
-   - Present the failure modes and proposed strategies to the user for review. Ask how they want to handle each case — do not assume.
+   - Present all failure modes with proposed strategies as a table, but escalate only the genuinely user-owned calls (data-loss policy, cost policy, what the user sees on failure) as a structured question round — for the mechanical rows, a proposed default with a clear rationale is enough. Do not assume on the escalated ones.
    - Scale depth to complexity: skip this for purely structural or trivial steps; be thorough for anything that touches I/O, state, or external systems.
 
-8. **Write the spec** — Once steps and failure modes are approved, write the full `spec.md` file following the structure above. Apply the chosen detail level throughout.
+8. **Write the spec** — Once steps and failure modes are approved, write the full `spec.md` file following the structure above. Apply the chosen detail level throughout. For multi-component projects using master + sub-specs, write and review the master (with its numbered contracts) first, then fan out sub-specs in parallel and reconcile — see "Multi-spec projects".
 
 9. **Review** — Ask the user to review the spec. Collect corrections and revise until the user is satisfied.
+
+## Multi-spec projects (master + sub-specs)
+
+A single `spec.md` stops working when the feature is really a system — several independently implementable components (e.g. a schema, a renderer, an engine, a GUI) that each need their own steps, failure modes, and progress tracking. Offer this structure at kickoff whenever you can see 3+ such components or the step plan would clearly exceed ~15 steps; let the user choose between one big spec, master + sub-specs, or specing only the first phase.
+
+When master + sub-specs is chosen:
+
+1. **Master first, contracts first.** `specs/<feature>/spec.md` holds the architecture and — critically — every cross-component contract (data formats, interfaces, storage layouts, config, CLI surface), numbered (C1, C2, …) so sub-specs can cite them. Contracts are the expensive-to-change surface: have the user review them *before* any sub-spec exists. Sub-specs reference contracts, never redefine them — that is what keeps N documents coherent.
+2. **Fan out sub-specs in parallel.** Draft each `specs/<feature>-<component>/spec.md` with a subagent. Prefer agents that inherit the full conversation (all decisions and context travel for free); otherwise include the decision ledger and the master spec path in the prompt. Each writer gets: its exact scope (which master steps), the spec file structure to follow, the binding-contracts rule, and a reporting duty — return a short summary of judgment calls made beyond the master plus any contract ambiguity hit. The flags are the point: writers decide locally so drafting stays parallel, but every decision surfaces for reconciliation.
+3. **Consistency pass.** When writers return, reconcile before showing the user: adopt flagged deltas into the master (amend the contracts), fix cross-references between coupled specs (APIs one spec assumes another provides), and resolve conflicts between writers — pick the resolution that preserves the stronger invariant and patch the losing spec. Verify couplings with targeted greps over the spec files rather than rereading everything.
+4. **Escalate only real judgment calls.** Most flags are mechanical adoptions. The few that genuinely belong to the user (a dropped feature resurfacing, a policy choice) go back as one final structured-question round together with the review request.
+5. **Progress files per sub-spec.** On opt-in, each sub-spec gets its own `progress.yaml` — send the request back to each sub-spec's author agent when possible, since it still holds its spec in context — and the master `progress.yaml` tracks only master-level steps. `/spec status` then shows per-component progress. When the master defines a global step numbering, keep it inside the sub-spec progress files so the two views line up.
 
 ## Process Flow
 
@@ -254,13 +275,16 @@ workflow:
 
   global_rules:
     - The target reader is always a senior developer or an AI agent acting as implementor. Be precise, unambiguous, and technical.
-    - Ask clarifying questions one at a time.
+    - Clarify via themed decision rounds - 2 to 4 related decisions per round as structured questions with concrete options, trade-offs, and a marked recommendation. Scale the number of rounds to project scope.
+    - Maintain a running decision ledger. Recap what each round locked before opening the next. Never relitigate a locked decision unless the user reopens it.
+    - Treat free-text answers as design input. Answer questions embedded in them before proceeding.
+    - Verify load-bearing external facts with cheap read-only calls during exploration. Label spec data as live-verified vs assumed.
     - Never proceed to spec writing until the problem is fully understood.
-    - Prefer visual representation — tables, diagrams, flowcharts. When in doubt, generate the HTML visual.
+    - Generate the HTML visual when the design has structure a diagram or table shows faster than prose (architecture, data models, a long decision ledger); skip it for single-file changes.
     - Propose 2 to 3 solution approaches with a recommendation before settling on one.
     - Implementation steps must be atomic and granular enough to be implemented independently.
     - Include acceptance criteria in every spec.
-    - Review each implementation step for failure modes. For steps involving I/O, state mutations, concurrency, or external dependencies, identify what can go wrong and propose recovery strategies. Ask the user — do not assume. Scale depth to risk.
+    - Review each implementation step for failure modes. For steps involving I/O, state mutations, concurrency, or external dependencies, identify what can go wrong and propose recovery strategies. Escalate only user-owned calls (data loss, cost, user-visible failure behavior) as questions; propose defaults with rationale for the rest. Scale depth to risk.
     - Include alternatives only when real tradeoffs were surfaced — omit otherwise.
     - Explore the codebase proactively but declare what you are reading and why.
 
@@ -282,6 +306,7 @@ workflow:
         - Declare what files or areas you intend to read and why.
         - Ask the user if there are specific areas to focus on.
         - Read relevant files, patterns, existing modules, git history.
+        - Verify load-bearing facts about reachable external systems (APIs, MCP servers, services) with cheap read-only calls; note verified values for the spec.
         - Identify project conventions (naming, architecture, style, testing patterns) — these become the primary best practice reference for the spec.
       exit_condition:
         - Relevant codebase context is understood.
@@ -290,8 +315,10 @@ workflow:
       title: Clarify until unambiguous
       objective: Achieve full, unambiguous understanding of the problem.
       agent_actions:
-        - Ask one clarifying question at a time.
-        - Continue until the problem, scope, success criteria, and constraints are clear.
+        - Group open decisions into themed rounds (2-4 per round) presented as structured questions with options, trade-offs, and a marked recommendation.
+        - Recap locked decisions at the start of each round; maintain the decision ledger.
+        - Answer questions embedded in free-text replies concretely; adapt the design and confirm consequences.
+        - Scale rounds to scope; continue until the problem, scope, success criteria, and constraints are clear.
       exit_condition:
         - Problem is fully understood with no material ambiguity remaining.
 
@@ -334,7 +361,7 @@ workflow:
         - For each approved step, assess whether it involves external services, data mutations, concurrency, user input, or any operation that can fail.
         - For steps with failure potential, identify specific failure modes (network errors, timeouts, invalid state, partial writes, race conditions, permission errors, etc.).
         - Propose a recovery strategy for each failure mode (retry with backoff, fallback, graceful degradation, fail-fast, rollback, idempotency guard, circuit breaker, etc.).
-        - Present failure modes and proposed strategies to the user. Ask how they want to handle each case — do not assume or decide unilaterally.
+        - Present all failure modes with proposed strategies as a table; escalate only genuinely user-owned calls (data-loss policy, cost policy, user-visible failure behavior) as structured questions — proposed defaults with rationale suffice for mechanical rows. Do not assume on the escalated ones.
         - Scale depth to risk — skip trivial or purely structural steps; be thorough for anything that touches I/O, state, or external systems.
         - If no step has meaningful failure modes, state that explicitly and move on.
       exit_condition:
@@ -347,8 +374,9 @@ workflow:
         - Determine the output path (follow existing specs/ pattern or create specs/<feature-name>/spec.md).
         - Write the full spec.md following the defined structure.
         - Apply the chosen detail level throughout.
+        - For master + sub-spec projects - write the master (architecture + numbered contracts) first and review it with the user; then draft sub-specs in parallel via subagents that inherit context and report judgment calls and contract ambiguities; then run the consistency pass (adopt deltas into the master, fix cross-references, resolve writer conflicts) before presenting.
       exit_condition:
-        - spec.md is written.
+        - spec.md is written (and, for multi-spec projects, sub-specs are written and reconciled).
 
     - id: review
       title: Review
@@ -369,7 +397,7 @@ workflow:
             - For each implementation step in the spec, expand it into nearly atomic tasks.
               Each task must be independently actionable — a single function, file, or config change.
               Do not copy step titles verbatim; derive granular tasks from the step's content.
-            - Write progress.yaml in the same directory as spec.md.
+            - Write progress.yaml in the same directory as spec.md. For master + sub-spec projects, write one per sub-spec (delegate to each sub-spec's author agent when it still holds its spec in context) plus a master file covering only master-level steps.
             - Format (YAML):
                 feature: <feature-name>
                 spec: <relative path to spec.md>

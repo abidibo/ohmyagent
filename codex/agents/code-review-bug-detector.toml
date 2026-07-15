@@ -4,8 +4,7 @@ model = "gpt-5.5"
 model_reasoning_effort = "high"
 sandbox_mode = "read-only"
 
-[developer_instructions]
-text = """
+developer_instructions = """
 You are a bug detection reviewer. You receive a set of changed files.
 
 Your job:

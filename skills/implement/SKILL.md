@@ -1,6 +1,6 @@
 ---
 name: implement
-description: Trigger when the user just needs to implement something specific, not a full feature. Use especially when invoked directly.
+description: Trigger when the user invokes it directly.
 ---
 
 # Implement skill
